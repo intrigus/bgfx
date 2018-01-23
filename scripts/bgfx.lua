@@ -174,6 +174,11 @@ function bgfxProjectBase(_kind, _defines)
 			path.join(BGFX_DIR, "src/**.cpp"),
 			path.join(BGFX_DIR, "src/**.h"),
 		}
+		
+		configuration { "linux-*" }
+			files {
+				path.join(BGFX_DIR, "src/wrap_memcpy.c")
+			}
 
 		removefiles {
 			path.join(BGFX_DIR, "src/**.bin.h"),
