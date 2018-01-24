@@ -1,4 +1,8 @@
 sudo: false
+
+services:
+  - docker
+  
 env:
   global:
   - secure: "OKc6Mojr/tBf2AP0IwZBeey0NXfrdxesfPhXlHPVQfbT4RbZwfaLnLbKsPV2MCRo0j5+vCxTiEEg+2tKIfpwOASyD8P0Qh3Isa4DjtueB8M/tdCzWYLGxJ6poGjMjd8cLUoExBfiNO7CL32B4Z83IEbpzC2ScPJRBnI2pmvCmniB9Wqt3yQUnlVc96e009ubrs6G5uMfzelAkVBsm9BexFxCtPBM5G6T8RDTKQ6h27pQlBjQnNn6s8JAod6u5byN4tmApW7ockham3sQ1c1+vTqnt97a6MS2O+G4/FdkJ/ex3I99wl1xHH6C89IicgN/xX+P/9JL4AWYP778AtRIXeSk3G6wMaWzeNYD+36T5iTvqniY0rqgPOcpnf78TjueUn57crqdt5tWaFUME7AB8/mSqPgKiiC1wuAoz85h/AOeiRtxd7zAHLk+blvIWOR+Z5yuHwCRFA7eemXriTfUU2LczS229IgD4yyqMYMVOksmo5bPmPL/vPsl0aIXQLEBS91OFxQKMPQu9gSJ3dqiObmhVnJ7OOhBxJ8deAC81nn76v6UaE7O0g4RiDeytOhiap/4MUjLDi9aR9WOX3rTvI5ZFxtKMMvFFjgs/0reWfdqW8kzCfPLzzaV83oYjsc5hhrQBBFN5gEbRwoIXdHvHMhqBU76jmQJF+J/KMcxGk4="
@@ -6,13 +10,6 @@ env:
 language: cpp
 compiler: gcc
 
-addons:
-  apt:
-    sources:
-    - ubuntu-toolchain-r-test
-    packages:
-    - gcc-6
-    - g++-6
 
 before_script:
 - git clone --depth 1 https://github.com/LWJGL-CI/bx.git ../bx
@@ -20,12 +17,19 @@ before_script:
 
 before_install:
 - pip install --user awscli
-- export PATH=$PATH:$HOME/.local/bin
+- docker pull intrigus/docker-raspberry-pi-cross-compiler
+- docker run intrigus/docker-raspberry-pi-cross-compiler > ~/bin/rpxc
+- chmod +x ~/bin/rpxc
+- export PATH=$PATH:$HOME/bin:$HOME/.local/bin
+- export RPXC_IMAGE=intrigus/docker-raspberry-pi-cross-compiler
+- echo "PKG_CONFIG_DIR=" >> .lwjgl_env_rpxc
+- echo "PKG_CONFIG_LIBDIR=${LWJGL_BUILD_SYSROOT}/usr/lib/pkgconfig:${LWJGL_BUILD_SYSROOT}/usr/share/pkgconfig:${LWJGL_BUILD_SYSROOT}/usr/lib/arm-linux-gnueabihf/pkgconfig:${LWJGL_BUILD_SYSROOT}/usr/share/arm-linux-gnueabihf/pkgconfig" >> .lwjgl_env_rpxc
+- echo "PKG_CONFIG_SYSROOT_DIR=${LWJGL_BUILD_SYSROOT}" >> .lwjgl_env_rpxc
 
 script:
 - ../bx/tools/bin/linux/genie --with-shared-lib --gcc=linux-gcc gmake
-- make -R -C .build/projects/gmake-linux config=release64 CXX="g++-6" CC="gcc-6" CFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0" LDFLAGS=-Wl,--wrap,memcpy bgfx-shared-lib
-- strip .build/linux64_gcc/bin/libbgfx-shared-libRelease.so
-- "aws s3 cp .build/linux64_gcc/bin/libbgfx-shared-libRelease.so s3://build.lwjgl.org/nightly/linux/x64/libbgfx.so --acl public-read --storage-class REDUCED_REDUNDANCY --cache-control \"public, must-revalidate, proxy-revalidate, max-age=0\""
-- "git log --pretty=format:%H HEAD~2..HEAD~1 | head -n 1 > libbgfx.so.git"
-- "aws s3 cp libbgfx.so.git s3://build.lwjgl.org/nightly/linux/x64/ --acl public-read --storage-class REDUCED_REDUNDANCY --cache-control \"public, must-revalidate, proxy-revalidate, max-age=0\""
+- rpxc --args "--env-file .lwjgl_env_rpxc" bash -c 'make -R -C .build/projects/gmake-linux config=release64 CXX="arm-linux-gnueabihf-g++" CC="arm-linux-gnueabihf-gcc" CFLAGS="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0" bgfx-shared-lib'
+- rpxc --args "--env-file .lwjgl_env_rpxc" bash -c 'arm-linux-gnueabihf-strip .build/linux64_gcc/bin/libbgfx-shared-libRelease.so'
+#- "aws s3 cp .build/linux64_gcc/bin/libbgfx-shared-libRelease.so s3://build.lwjgl.org/nightly/linux/x64/libbgfx.so --acl public-read --storage-class REDUCED_REDUNDANCY --cache-control \"public, must-revalidate, proxy-revalidate, max-age=0\""
+#- "git log --pretty=format:%H HEAD~2..HEAD~1 | head -n 1 > libbgfx.so.git"
+#- "aws s3 cp libbgfx.so.git s3://build.lwjgl.org/nightly/linux/x64/ --acl public-read --storage-class REDUCED_REDUNDANCY --cache-control \"public, must-revalidate, proxy-revalidate, max-age=0\""
